@@ -1,4 +1,7 @@
 `define NUM_MAPPERS 4
+`define START_ADDR 'h80000000
+`define RESULT_ADDR 'hF0000000
+`define DATA_SIZE 100*1024
 `timescale 1 ns / 1 ps 
 
 module blackbox (
@@ -174,12 +177,12 @@ wire [`NUM_MAPPERS-1:0] valid_fifo_data;
 
 reg          s_axis_mm2s_cmd_tvalid;
 reg [71:0]   s_axis_mm2s_cmd_tdata;
-reg [31:0]   user_sys_dma_addr_i  = 'h80000000;
-reg [31:0]   user_sys_dma_len_i   = 'd4*1024*1024;
+reg [31:0]   user_sys_dma_addr_i = `START_ADDR;
+reg [31:0]   user_sys_dma_len_i  = `DATA_SIZE;
 reg [31:0]   user_sys_dma_len;
 reg [31:0]   user_sys_dma_addr;
 wire [255 : 0] m_axis_mm2s_tdata;
-wire         s_axis_mm2s_cmd_tready_dm;
+wire         s_axis_mm2s_cmd_tready;
 
 reg [2:0]    state;
 
@@ -206,14 +209,14 @@ axi_datamover_0 dm0 (
   .m_axis_mm2s_sts_tdata(),                                 // output wire [7 : 0] m_axis_mm2s_sts_tdata
   .m_axis_mm2s_sts_tkeep(),                                 // output wire [0 : 0] m_axis_mm2s_sts_tkeep
   .m_axis_mm2s_sts_tlast(),                                 // output wire m_axis_mm2s_sts_tlast
-  .m_axi_mm2s_arid(m_axi_dataPort1_ARID),                   // output wire [3 : 0] m_axi_mm2s_arid
+  .m_axi_mm2s_arid(),    //m_axi_dataPort1_ARID               // output wire [3 : 0] m_axi_mm2s_arid
   .m_axi_mm2s_araddr(m_axi_dataPort1_ARADDR),               // output wire [31 : 0] m_axi_mm2s_araddr
   .m_axi_mm2s_arlen(m_axi_dataPort1_ARLEN),                 // output wire [7 : 0] m_axi_mm2s_arlen
   .m_axi_mm2s_arsize(m_axi_dataPort1_ARSIZE),               // output wire [2 : 0] m_axi_mm2s_arsize
   .m_axi_mm2s_arburst(m_axi_dataPort1_ARBURST),             // output wire [1 : 0] m_axi_mm2s_arburst
   .m_axi_mm2s_arprot(m_axi_dataPort1_ARPROT),               // output wire [2 : 0] m_axi_mm2s_arprot
   .m_axi_mm2s_arcache(m_axi_dataPort1_ARCACHE),             // output wire [3 : 0] m_axi_mm2s_arcache
-  .m_axi_mm2s_aruser(m_axi_dataPort1_ARUSER),               // output wire [3 : 0] m_axi_mm2s_aruser
+  .m_axi_mm2s_aruser(),      //m_axi_dataPort1_ARUSER         // output wire [3 : 0] m_axi_mm2s_aruser
   .m_axi_mm2s_arvalid(m_axi_dataPort1_ARVALID),             // output wire m_axi_mm2s_arvalid
   .m_axi_mm2s_arready(m_axi_dataPort1_ARREADY),             // input wire m_axi_mm2s_arready
   .m_axi_mm2s_rdata(m_axi_dataPort1_RDATA),                 // input wire [511 : 0] m_axi_mm2s_rdata
@@ -222,7 +225,7 @@ axi_datamover_0 dm0 (
   .m_axi_mm2s_rvalid(m_axi_dataPort1_RVALID),              // input wire m_axi_mm2s_rvalid
   .m_axi_mm2s_rready(m_axi_dataPort1_RREADY),              // output wire m_axi_mm2s_rready
   .m_axis_mm2s_tdata(m_axis_mm2s_tdata),                    // output wire [255 : 0] m_axis_mm2s_tdata
-  .m_axis_mm2s_tkeep(m_axis_mm2s_tkeep),                    // output wire [31 : 0] m_axis_mm2s_tkeep
+  .m_axis_mm2s_tkeep(),                                     // output wire [31 : 0] m_axis_mm2s_tkeep
   .m_axis_mm2s_tlast(m_axis_mm2s_tlast),                    // output wire m_axis_mm2s_tlast
   .m_axis_mm2s_tvalid(m_axis_mm2s_tvalid),                  // output wire m_axis_mm2s_tvalid
   .m_axis_mm2s_tready(m_axis_mm2s_tready)                   // input wire m_axis_mm2s_tready
@@ -230,7 +233,6 @@ axi_datamover_0 dm0 (
 
 reg  int_reset;
 reg [31:0] counter;
-reg [31:0] j;
 
 always @(posedge ap_clk)
 begin
@@ -300,6 +302,9 @@ begin
        ap_idle  <=  1'b0; 
        ap_ready <=  1'b0;
        int_reset <= 1'b1;
+       m_axi_dataPort1_AWVALID <= 1'b0;
+       m_axi_dataPort1_WVALID  <= 1'b0;
+       m_axi_dataPort1_WLAST   <= 1'b0;
    end
    case(state)
         RD_IDLE:begin
@@ -470,8 +475,8 @@ generate
    end
 endgenerate
 
-assign m_axi_dataPort1_WDATA = {{(C_M_AXI_DATAPORT1_DATA_WIDTH-'d32){1'b1}},reduced_data_count};
-assign m_axi_dataPort1_AWADDR  = 'hF0000000;  //Hardcoded the result address
+assign m_axi_dataPort1_WDATA = {{(C_M_AXI_DATAPORT1_DATA_WIDTH-'d32){1'b0}},reduced_data_count};
+assign m_axi_dataPort1_AWADDR  = `RESULT_ADDR;  //Hardcoded the result address
 assign m_axi_dataPort1_AWID = {C_M_AXI_DATAPORT1_ID_WIDTH{1'b0}};
 assign m_axi_dataPort1_AWLEN = 8'h00;
 assign m_axi_dataPort1_AWSIZE = 3'b111;
@@ -487,6 +492,7 @@ assign m_axi_dataPort1_WUSER = {C_M_AXI_DATAPORT1_WUSER_WIDTH{1'b0}};
 assign m_axi_dataPort1_ARLOCK = {2{1'b0}};
 assign m_axi_dataPort1_ARQOS = {4{1'b0}};
 assign m_axi_dataPort1_ARREGION = {4{1'b0}};
+assign m_axi_dataPort1_AWREGION = {4{1'b0}};
 
 endmodule //blackbox
 
